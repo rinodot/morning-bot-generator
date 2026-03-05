@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>朝刊Bot ジェネレーター</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { min-height:100vh; background:#0B0F1A; color:#E2E8F0; font-family:'Noto Sans JP',sans-serif; -webkit-text-size-adjust:100%; }
+  .header { background:linear-gradient(135deg,#0F172A 0%,#1E1B4B 60%,#0F172A 100%); border-bottom:1px solid rgba(99,102,241,0.2); padding:24px 20px; }
+  .header-inner { max-width:640px; margin:0 auto; }
+  .header h1 { font-size:20px; font-weight:800; margin:0 0 4px; background:linear-gradient(90deg,#A5B4FC,#06C755); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+  .header p { font-size:12px; color:#94A3B8; margin:0; }
+  .main { max-width:640px; margin:0 auto; padding:20px 20px 80px; }
+  .progress { display:flex; gap:4px; margin-bottom:24px; }
+  .progress-dot { flex:1; height:4px; border-radius:2px; background:rgba(255,255,255,0.1); transition:background 0.3s; }
+  .progress-dot.active { background:#6366F1; }
+  .progress-dot.done { background:#06C755; }
+  .step-label { font-size:11px; color:#64748B; margin-bottom:4px; }
+  .step-title { font-size:18px; font-weight:700; color:#F1F5F9; margin-bottom:16px; }
+  .step-desc { font-size:12px; color:#94A3B8; margin-bottom:16px; line-height:1.6; }
+  .card { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:16px; margin-bottom:10px; cursor:pointer; transition:all 0.2s; }
+  .card:hover { border-color:rgba(255,255,255,0.15); }
+  .card.selected { background:rgba(99,102,241,0.1); border-color:rgba(99,102,241,0.4); }
+  .card.static { cursor:default; }
+  .card-row { display:flex; align-items:center; }
+  .card-emoji { font-size:22px; margin-right:10px; }
+  .card-name { font-size:14px; font-weight:600; color:#E2E8F0; }
+  .card-sub { font-size:11px; color:#64748B; margin-top:2px; }
+  .card-label { font-size:12px; font-weight:600; color:#A5B4FC; margin-bottom:8px; }
+  .label { font-size:13px; font-weight:600; color:#CBD5E1; margin-bottom:6px; display:block; }
+  .hint { font-size:11px; color:#64748B; margin-top:4px; }
+  input[type="text"], input[type="password"], textarea {
+    width:100%; padding:10px 12px; border-radius:8px; font-size:13px;
+    border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.05);
+    color:#E2E8F0; outline:none; font-family:inherit; box-sizing:border-box;
+  }
+  input::placeholder, textarea::placeholder { color:#4B5563; }
+  textarea { resize:vertical; min-height:80px; }
+  .input-row { display:flex; gap:6px; margin-bottom:6px; align-items:center; }
+  .input-sm { flex:1; padding:8px 10px; border-radius:8px; font-size:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.05); color:#E2E8F0; outline:none; font-family:inherit; }
+  .input-name { flex:0 0 100px; }
+  .btn { padding:12px 32px; border-radius:10px; border:none; font-size:14px; font-weight:700; cursor:pointer; font-family:inherit; transition:all 0.2s; }
+  .btn-primary { background:linear-gradient(135deg,#6366F1,#4F46E5); color:#fff; }
+  .btn-primary:disabled { opacity:0.4; cursor:not-allowed; }
+  .btn-secondary { padding:10px 20px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); font-size:13px; font-weight:600; background:transparent; color:#94A3B8; cursor:pointer; font-family:inherit; }
+  .btn-sm { padding:6px 14px; font-size:12px; border-radius:8px; }
+  .btn-danger { padding:6px 12px; border-radius:6px; border:none; font-size:11px; cursor:pointer; background:rgba(239,68,68,0.15); color:#F87171; font-family:inherit; }
+  .btn-generate { padding:14px 40px; font-size:15px; }
+  .btn-copy { position:absolute; top:8px; right:8px; padding:6px 14px; border-radius:6px; border:none; font-size:11px; font-weight:600; cursor:pointer; z-index:1; background:rgba(255,255,255,0.1); color:#A5B4FC; font-family:inherit; transition:all 0.2s; }
+  .btn-copy.copied { background:#06C755; color:#fff; }
+  .tag { display:inline-block; padding:2px 8px; border-radius:6px; font-size:10px; font-weight:600; background:rgba(34,197,94,0.1); color:#22C55E; margin:0 4px 4px 0; }
+  .info-box { background:rgba(99,102,241,0.06); border:1px solid rgba(99,102,241,0.2); border-radius:10px; padding:12px 16px; font-size:12px; color:#A5B4FC; line-height:1.7; margin-bottom:16px; }
+  .info-box.error { background:rgba(239,68,68,0.1); border-color:rgba(239,68,68,0.3); color:#F87171; }
+  .code-box { background:#1E293B; border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:16px; font-size:11px; font-family:'JetBrains Mono',monospace; color:#A5B4FC; line-height:1.6; max-height:400px; overflow:auto; white-space:pre-wrap; word-break:break-all; position:relative; }
+  .nav { display:flex; justify-content:space-between; align-items:center; margin-top:24px; }
+  .hidden { display:none; }
+  .mb-16 { margin-bottom:16px; }
+  .mb-20 { margin-top:20px; }
+  .center { text-align:center; }
+  .steps-after { margin-top:20px; font-size:13px; font-weight:600; color:#CBD5E1; margin-bottom:10px; }
+  .steps-list { font-size:12px; color:#94A3B8; line-height:2; }
+  .section-title { font-size:14px; font-weight:700; color:#94A3B8; margin:20px 0 10px; }
+  .cat-header { font-size:13px; font-weight:700; color:#6366F1; margin:18px 0 8px; padding:6px 0; border-bottom:1px solid rgba(99,102,241,0.15); }
+  .cat-header:first-of-type { margin-top:8px; }
+  .search-input { width:100%; padding:10px 12px 10px 36px; border-radius:10px; font-size:13px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.05); color:#E2E8F0; outline:none; font-family:inherit; box-sizing:border-box; margin-bottom:12px; }
+  .search-wrap { position:relative; }
+  .search-icon { position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:14px; color:#64748B; pointer-events:none; }
+  .selected-count { display:inline-block; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600; background:rgba(99,102,241,0.15); color:#A5B4FC; margin-left:8px; }
+  .toggle-row { display:flex; align-items:center; gap:10px; margin-bottom:16px; }
+  .toggle { position:relative; width:44px; height:24px; background:rgba(255,255,255,0.1); border-radius:12px; cursor:pointer; transition:background 0.2s; flex-shrink:0; }
+  .toggle.on { background:#6366F1; }
+  .toggle-knob { position:absolute; top:2px; left:2px; width:20px; height:20px; background:#fff; border-radius:50%; transition:transform 0.2s; }
+  .toggle.on .toggle-knob { transform:translateX(20px); }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .spinner { display:inline-block; width:16px; height:16px; border:2px solid rgba(255,255,255,0.3); border-top-color:#fff; border-radius:50%; animation:spin 0.6s linear infinite; margin-right:8px; vertical-align:middle; }
+  .accordion { border:1px solid rgba(255,255,255,0.08); border-radius:10px; margin-bottom:8px; overflow:hidden; }
+  .accordion-header { display:flex; justify-content:space-between; align-items:center; padding:12px 16px; cursor:pointer; background:rgba(255,255,255,0.03); transition:background 0.2s; }
+  .accordion-header:hover { background:rgba(255,255,255,0.06); }
+  .accordion-title { font-size:13px; font-weight:600; color:#E2E8F0; }
+  .accordion-arrow { font-size:12px; color:#64748B; transition:transform 0.2s; }
+  .accordion-arrow.open { transform:rotate(90deg); }
+  .accordion-body { display:none; padding:0 16px 16px; }
+  .accordion-body.open { display:block; }
+  .guide-step { display:flex; gap:10px; margin-bottom:10px; padding:10px 12px; border-radius:8px; background:rgba(255,255,255,0.02); }
+  .guide-num { width:22px; height:22px; min-width:22px; border-radius:50%; font-size:11px; font-weight:800; display:flex; align-items:center; justify-content:center; margin-top:1px; background:rgba(99,102,241,0.2); color:#A5B4FC; }
+  .guide-text { font-size:12px; color:#CBD5E1; line-height:1.7; }
+  .guide-text a { color:#A5B4FC; text-decoration:none; }
+  .guide-text a:hover { text-decoration:underline; }
+  .guide-text code { background:rgba(255,255,255,0.08); padding:1px 5px; border-radius:4px; font-size:11px; font-family:'JetBrains Mono',monospace; color:#F59E0B; }
+  .guide-warn { font-size:11px; color:#F59E0B; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.15); border-radius:8px; padding:8px 12px; margin-top:8px; line-height:1.6; }
+  .guide-link-btn { display:inline-block; margin-top:6px; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:600; background:rgba(99,102,241,0.15); color:#A5B4FC; text-decoration:none; border:1px solid rgba(99,102,241,0.2); }
+  .guide-link-btn:hover { background:rgba(99,102,241,0.25); }
+  .full-guide-btn { display:block; text-align:center; padding:12px; border-radius:10px; font-size:13px; font-weight:600; color:#A5B4FC; background:rgba(99,102,241,0.06); border:1px solid rgba(99,102,241,0.15); cursor:pointer; margin-top:16px; transition:all 0.2s; font-family:inherit; }
+  .full-guide-btn:hover { background:rgba(99,102,241,0.12); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-inner">
+    <h1>🛠️ 朝刊Bot ジェネレーター</h1>
+    <p>好みを選ぶだけで、毎朝LINEにニュースが届くBotのコードを自動生成</p>
+  </div>
+</div>
+
+<div class="main">
+  <div class="progress" id="progress"></div>
+  <div id="content"></div>
+  <div id="nav"></div>
+</div>
+
+<script>
+// ===== DATA =====
+const GENRES = {
+  // ===== テクノロジー系 =====
+  ai_tech: { label:"AI・テクノロジー", emoji:"🤖", feeds:[
+    {name:"TechCrunch",url:"https://techcrunch.com/feed/"},
+    {name:"The Verge",url:"https://www.theverge.com/rss/index.xml"},
+    {name:"Publickey",url:"https://www.publickey1.jp/atom.xml"},
+    {name:"GIGAZINE",url:"https://gigazine.net/news/rss_2.0/"},
+    {name:"MIT Tech Review",url:"https://www.technologyreview.com/feed/"},
+  ]},
+  indie_dev: { label:"個人開発・スタートアップ", emoji:"🚀", feeds:[
+    {name:"Hacker News",url:"https://hnrss.org/newest?points=100"},
+    {name:"Indie Hackers",url:"https://www.indiehackers.com/feed.xml"},
+    {name:"Product Hunt",url:"https://www.producthunt.com/feed"},
+    {name:"TechCrunch Startups",url:"https://techcrunch.com/category/startups/feed/"},
+  ]},
+  programming: { label:"プログラミング・開発", emoji:"💻", feeds:[
+    {name:"dev.to",url:"https://dev.to/feed"},
+    {name:"Zenn",url:"https://zenn.dev/feed"},
+    {name:"Qiita",url:"https://qiita.com/popular-items/feed"},
+    {name:"Publickey",url:"https://www.publickey1.jp/atom.xml"},
+  ]},
+  web_dev: { label:"Web開発・フロントエンド", emoji:"🌐", feeds:[
+    {name:"CSS-Tricks",url:"https://css-tricks.com/feed/"},
+    {name:"Smashing Magazine",url:"https://www.smashingmagazine.com/feed/"},
+    {name:"Coliss",url:"https://coliss.com/feed/"},
+    {name:"web.dev",url:"https://web.dev/feed.xml"},
+  ]},
+  mobile_dev: { label:"モバイルアプリ開発", emoji:"📱", feeds:[
+    {name:"Android Developers Blog",url:"https://android-developers.googleblog.com/feeds/posts/default"},
+    {name:"Swift by Sundell",url:"https://www.swiftbysundell.com/rss"},
+    {name:"Flutter Dev",url:"https://medium.com/feed/flutter"},
+  ]},
+  cybersecurity: { label:"セキュリティ", emoji:"🔐", feeds:[
+    {name:"Krebs on Security",url:"https://krebsonsecurity.com/feed/"},
+    {name:"The Hacker News",url:"https://feeds.feedburner.com/TheHackersNews"},
+    {name:"Security NEXT",url:"https://www.security-next.com/feed"},
+  ]},
+  // ===== ビジネス・経済系 =====
+  business: { label:"ビジネス・経済", emoji:"💼", feeds:[
+    {name:"Bloomberg",url:"https://feeds.bloomberg.com/technology/news.rss"},
+    {name:"東洋経済",url:"https://toyokeizai.net/list/feed/rss"},
+    {name:"ダイヤモンド",url:"https://diamond.jp/feed/index.xml"},
+  ]},
+  marketing: { label:"マーケティング・広告", emoji:"📣", feeds:[
+    {name:"MarkeZine",url:"https://markezine.jp/rss/new/20/index.xml"},
+    {name:"HubSpot Blog",url:"https://blog.hubspot.com/marketing/rss.xml"},
+    {name:"Web担当者Forum",url:"https://webtan.impress.co.jp/feed"},
+  ]},
+  investing: { label:"投資・株式・仮想通貨", emoji:"📈", feeds:[
+    {name:"CoinDesk",url:"https://www.coindesk.com/arc/outboundfeeds/rss/"},
+    {name:"Seeking Alpha",url:"https://seekingalpha.com/market_currents.xml"},
+    {name:"投資の森",url:"https://nikkeiyosoku.com/rss/"},
+  ]},
+  realestate: { label:"不動産・住まい", emoji:"🏠", feeds:[
+    {name:"SUUMOジャーナル",url:"https://suumo.jp/journal/feed/"},
+    {name:"HOME'S PRESS",url:"https://www.homes.co.jp/cont/press/feed/"},
+  ]},
+  // ===== エンタメ系 =====
+  gaming: { label:"ゲーム", emoji:"🎮", feeds:[
+    {name:"IGN",url:"https://feeds.feedburner.com/ign/all"},
+    {name:"4Gamer",url:"https://www.4gamer.net/rss/index.xml"},
+    {name:"ファミ通",url:"https://www.famitsu.com/feed/"},
+    {name:"Automaton",url:"https://automaton-media.com/feed/"},
+  ]},
+  anime_manga: { label:"アニメ・マンガ", emoji:"🎌", feeds:[
+    {name:"アニメ！アニメ！",url:"https://animeanime.jp/rss/index.rdf"},
+    {name:"コミックナタリー",url:"https://natalie.mu/comic/feed/news"},
+    {name:"Anime News Network",url:"https://www.animenewsnetwork.com/all/rss.xml"},
+  ]},
+  movies_drama: { label:"映画・ドラマ", emoji:"🎬", feeds:[
+    {name:"映画.com",url:"https://eiga.com/feed/"},
+    {name:"シネマトゥデイ",url:"https://www.cinematoday.jp/rss"},
+    {name:"Variety",url:"https://variety.com/feed/"},
+  ]},
+  music: { label:"音楽", emoji:"🎵", feeds:[
+    {name:"ナタリー",url:"https://natalie.mu/music/feed/news"},
+    {name:"Pitchfork",url:"https://pitchfork.com/feed/feed-news/rss"},
+    {name:"BARKS",url:"https://www.barks.jp/rss/news/"},
+  ]},
+  // ===== 学習・学術系 =====
+  science: { label:"科学・宇宙", emoji:"🔬", feeds:[
+    {name:"Nature",url:"https://www.nature.com/nature.rss"},
+    {name:"Science Daily",url:"https://www.sciencedaily.com/rss/all.xml"},
+    {name:"ナゾロジー",url:"https://nazology.kusuguru.co.jp/feed"},
+    {name:"NASA",url:"https://www.nasa.gov/feed/"},
+  ]},
+  education: { label:"教育・学習", emoji:"📚", feeds:[
+    {name:"EdSurge",url:"https://www.edsurge.com/articles_rss"},
+    {name:"Education Week",url:"https://www.edweek.org/feed"},
+    {name:"ICT教育ニュース",url:"https://ict-enews.net/feed/"},
+  ]},
+  language: { label:"語学・英語学習", emoji:"🗣️", feeds:[
+    {name:"BBC Learning English",url:"https://www.bbc.co.uk/learningenglish/english/rss"},
+    {name:"VOA Learning English",url:"https://learningenglish.voanews.com/api/zq_oremqvi"},
+  ]},
+  // ===== ライフスタイル系 =====
+  fitness: { label:"フィットネス・筋トレ", emoji:"💪", feeds:[
+    {name:"Men's Health",url:"https://www.menshealth.com/rss/all.xml/"},
+    {name:"Healthline Fitness",url:"https://www.healthline.com/rss"},
+    {name:"T NATION",url:"https://www.t-nation.com/rss"},
+  ]},
+  cooking: { label:"料理・グルメ", emoji:"🍳", feeds:[
+    {name:"Serious Eats",url:"https://www.seriouseats.com/feeds/serious-eats"},
+    {name:"食べログマガジン",url:"https://magazine.tabelog.com/feed"},
+    {name:"クラシル",url:"https://www.kurashiru.com/feed"},
+  ]},
+  parenting: { label:"子育て・育児", emoji:"👶", feeds:[
+    {name:"たまひよ",url:"https://st.benesse.ne.jp/rss/index.xml"},
+    {name:"KIDSNA",url:"https://kidsna.com/rss"},
+  ]},
+  travel: { label:"旅行・観光", emoji:"✈️", feeds:[
+    {name:"Travel + Leisure",url:"https://www.travelandleisure.com/feeds/all"},
+    {name:"トラベルWatch",url:"https://travel.watch.impress.co.jp/data/rss/1.0/tvw/feed.rdf"},
+    {name:"TABIPPO",url:"https://tabippo.net/feed/"},
+  ]},
+  fashion: { label:"ファッション", emoji:"👗", feeds:[
+    {name:"WWD Japan",url:"https://www.wwdjapan.com/feed"},
+    {name:"Fashionsnap",url:"https://www.fashionsnap.com/rss/"},
+    {name:"Hypebeast",url:"https://hypebeast.com/feed"},
+  ]},
+  interior: { label:"インテリア・暮らし", emoji:"🛋️", feeds:[
+    {name:"RoomClip",url:"https://roomclip.jp/mag/feed"},
+    {name:"Houzz",url:"https://www.houzz.com/ideabooks/rss"},
+  ]},
+  // ===== デザイン・アート系 =====
+  design: { label:"デザイン・UI/UX", emoji:"🎨", feeds:[
+    {name:"Dezeen",url:"https://www.dezeen.com/feed/"},
+    {name:"Creative Bloq",url:"https://www.creativebloq.com/feed"},
+    {name:"Coliss",url:"https://coliss.com/feed/"},
+    {name:"UX Collective",url:"https://uxdesign.cc/feed"},
+  ]},
+  photo: { label:"写真・映像制作", emoji:"📷", feeds:[
+    {name:"PetaPixel",url:"https://petapixel.com/feed/"},
+    {name:"デジカメWatch",url:"https://dc.watch.impress.co.jp/data/rss/1.0/dcw/feed.rdf"},
+    {name:"No Film School",url:"https://nofilmschool.com/rss.xml"},
+  ]},
+  // ===== 社会・ニュース系 =====
+  world_news: { label:"世界のニュース", emoji:"🌍", feeds:[
+    {name:"BBC News",url:"https://feeds.bbci.co.uk/news/world/rss.xml"},
+    {name:"Reuters",url:"https://www.reutersagency.com/feed/"},
+    {name:"NHK World",url:"https://www3.nhk.or.jp/rss/news/cat0.xml"},
+  ]},
+  japan_news: { label:"国内ニュース", emoji:"🗾", feeds:[
+    {name:"NHKニュース",url:"https://www3.nhk.or.jp/rss/news/cat0.xml"},
+    {name:"朝日新聞デジタル",url:"https://www.asahi.com/rss/asahi/newsheadlines.rdf"},
+    {name:"Yahoo!ニュース",url:"https://news.yahoo.co.jp/rss/topics/top-picks.xml"},
+  ]},
+  politics: { label:"政治・政策", emoji:"🏛️", feeds:[
+    {name:"NHK政治",url:"https://www3.nhk.or.jp/rss/news/cat4.xml"},
+    {name:"Politico",url:"https://www.politico.com/rss/politicopicks.xml"},
+  ]},
+  environment: { label:"環境・サステナビリティ", emoji:"🌱", feeds:[
+    {name:"GreenBiz",url:"https://www.greenbiz.com/rss/all"},
+    {name:"環境ビジネス",url:"https://www.kankyo-business.jp/news/rss"},
+    {name:"TreeHugger",url:"https://www.treehugger.com/feeds/all"},
+  ]},
+  // ===== その他 =====
+  gadgets: { label:"ガジェット・家電", emoji:"⌚", feeds:[
+    {name:"Engadget",url:"https://www.engadget.com/rss.xml"},
+    {name:"GIZMODO Japan",url:"https://www.gizmodo.jp/feed/"},
+    {name:"家電Watch",url:"https://kaden.watch.impress.co.jp/data/rss/1.0/kdw/feed.rdf"},
+  ]},
+  cars: { label:"自動車・モビリティ", emoji:"🚗", feeds:[
+    {name:"Autoblog",url:"https://www.autoblog.com/rss.xml"},
+    {name:"レスポンス",url:"https://response.jp/rss/index.rdf"},
+    {name:"くるまのニュース",url:"https://kuruma-news.jp/feed"},
+  ]},
+  space: { label:"宇宙・天文", emoji:"🚀", feeds:[
+    {name:"NASA",url:"https://www.nasa.gov/feed/"},
+    {name:"Space.com",url:"https://www.space.com/feeds/all"},
+    {name:"sorae",url:"https://sorae.info/feed"},
+  ]},
+  pets: { label:"ペット・動物", emoji:"🐾", feeds:[
+    {name:"ペトこと",url:"https://petokoto.com/feed"},
+    {name:"The Dodo",url:"https://www.thedodo.com/rss"},
+  ]},
+  sports: { label:"スポーツ", emoji:"⚽", feeds:[
+    {name:"ESPN",url:"https://www.espn.com/espn/rss/news"},
+    {name:"スポニチ",url:"https://www.sponichi.co.jp/rss/flash.rdf"},
+    {name:"Number Web",url:"https://number.bunshun.jp/list/rss"},
+  ]},
+};
+
+const CATEGORIES = [
+  { label:"テクノロジー", ids:["ai_tech","indie_dev","programming","web_dev","mobile_dev","cybersecurity","gadgets"] },
+  { label:"ビジネス・経済", ids:["business","marketing","investing","realestate"] },
+  { label:"エンタメ", ids:["gaming","anime_manga","movies_drama","music","sports"] },
+  { label:"学習・学術", ids:["science","education","language","space"] },
+  { label:"ライフスタイル", ids:["fitness","cooking","parenting","travel","fashion","interior"] },
+  { label:"デザイン・クリエイティブ", ids:["design","photo"] },
+  { label:"ニュース・社会", ids:["world_news","japan_news","politics","environment"] },
+  { label:"その他", ids:["cars","pets"] },
+];
+
+const TONES = [
+  {id:"casual",label:"カジュアル",desc:"友だちに話すような気軽なトーン"},
+  {id:"professional",label:"ビジネス",desc:"簡潔で要点を押さえたトーン"},
+  {id:"fun",label:"エンタメ",desc:"楽しく読めるトーン（絵文字多め）"},
+];
+
+const TONE_PROMPTS = {
+  casual: "友だちに話すような気軽なトーンで、わかりやすく要約してください。",
+  professional: "ビジネスパーソン向けに、簡潔で要点を押さえた要約をしてください。",
+  fun: "楽しく読めるように、絵文字を交えたエンタメ風の要約をしてください。",
+};
+
+// ===== STATE =====
+let state = {
+  step: 0,
+  selectedGenres: [],
+  customFeeds: [{name:"",url:""}],
+  tone: "casual",
+  customPrompt: "",
+  lineToken: "",
+  lineUserId: "",
+  geminiKey: "",
+  useAI: false,
+  claudeKey: "",
+  generatedCode: "",
+  loading: false,
+  error: "",
+  copied: false,
+  searchQuery: "",
+  showGuide: false,
+  openAccordions: {},
+};
+
+// IME変換中かどうかのフラグ
+let isComposing = false;
+document.addEventListener('compositionstart', () => { isComposing = true; });
+document.addEventListener('compositionend', (e) => {
+  isComposing = false;
+  // 変換確定時に値を反映
+  if (e.target.dataset.sid) {
+    e.target.dispatchEvent(new Event('input'));
+  }
+});
+
+function setState(patch) {
+  Object.assign(state, patch);
+
+  // IME変換中は再描画しない
+  if (isComposing) return;
+
+  // 再描画前にフォーカス中の要素とカーソル位置を保存
+  const focused = document.activeElement;
+  const focusId = focused?.getAttribute('data-sid');
+  const cursorPos = focused?.selectionStart;
+  const cursorEnd = focused?.selectionEnd;
+
+  render();
+
+  // 再描画後にフォーカスとカーソル位置を復元
+  if (focusId) {
+    requestAnimationFrame(() => {
+      const el = document.querySelector(`[data-sid="${focusId}"]`);
+      if (el) {
+        el.focus();
+        if (typeof cursorPos === 'number' && el.setSelectionRange) {
+          el.setSelectionRange(cursorPos, cursorEnd ?? cursorPos);
+        }
+      }
+    });
+  }
+}
+
+// ===== HELPERS =====
+function getAllFeeds() {
+  const preset = state.selectedGenres.flatMap(id => GENRES[id]?.feeds || []);
+  const custom = state.customFeeds.filter(f => f.name && f.url);
+  const all = [...preset, ...custom];
+  const seen = new Set();
+  return all.filter(f => { if(seen.has(f.url)) return false; seen.add(f.url); return true; });
+}
+
+function canProceed() {
+  if(state.step === 0) return state.selectedGenres.length > 0 || state.customFeeds.some(f => f.name && f.url);
+  return true;
+}
+
+function esc(s) { return s.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,'\\n'); }
+
+// ===== TEMPLATE-BASED CODE GENERATION =====
+function generateFromTemplate() {
+  const feeds = getAllFeeds();
+  const tonePrompt = TONE_PROMPTS[state.tone] || TONE_PROMPTS.casual;
+  const genreLabels = state.selectedGenres.map(id => GENRES[id]?.label).filter(Boolean).join('・');
+  const extra = state.customPrompt ? `\n追加の指示: ${state.customPrompt}` : '';
+
+  const feedsStr = feeds.map(f => `  { name: '${esc(f.name)}', url: '${esc(f.url)}' },`).join('\n');
+
+  const lt = state.lineToken || 'ここにチャネルアクセストークンを貼る';
+  const lu = state.lineUserId || 'ここにユーザーIDを貼る';
+  const gk = state.geminiKey || 'ここにGemini APIキーを貼る';
+
+  return `// ============================================
+// 🌅 毎朝届くニュースBot
+// Google Apps Script + Gemini API + LINE Messaging API
+// ジャンル: ${genreLabels || 'カスタム'}
+// ============================================
+
+// ★ ここに自分の情報を入れる ★
+const LINE_ACCESS_TOKEN = '${esc(lt)}';
+const LINE_USER_ID = '${esc(lu)}';
+const GEMINI_API_KEY = '${esc(gk)}';
+
+// ニュースソース（自由に追加・削除できる）
+const RSS_FEEDS = [
+${feedsStr}
+];
+
+// ============================================
+// メイン関数（トリガーで毎朝実行される）
+// ============================================
+function main() {
+  const articles = fetchRssArticles();
+  if (articles.length === 0) {
+    sendLineMessage('⚠️ 今日はニュースを取得できませんでした。');
+    return;
+  }
+  const summary = summarizeWithRetry(articles);
+  sendLineMessage(summary);
+}
+
+// ============================================
+// RSSフィードからニュースを取得
+// ============================================
+function fetchRssArticles() {
+  const articles = [];
+  for (const feed of RSS_FEEDS) {
+    try {
+      const xml = UrlFetchApp.fetch(feed.url, { muteHttpExceptions: true }).getContentText();
+      const doc = XmlService.parse(xml);
+      const root = doc.getRootElement();
+
+      // RSS 2.0 形式
+      const channel = root.getChild('channel');
+      if (channel) {
+        const items = channel.getChildren('item');
+        for (const item of items.slice(0, 5)) {
+          const title = item.getChildText('title') || '';
+          const link = item.getChildText('link') || '';
+          if (title && link) {
+            articles.push({ title: title.trim(), link: link.trim(), source: feed.name });
+          }
+        }
+        continue;
+      }
+
+      // Atom 形式
+      const ns = root.getNamespace();
+      const entries = root.getChildren('entry', ns) || [];
+      for (const entry of entries.slice(0, 5)) {
+        const title = entry.getChildText('title', ns) || '';
+        const links = entry.getChildren('link', ns);
+        const linkEl = links.find(l => l.getAttribute('rel')?.getValue() === 'alternate') || links[0];
+        const link = linkEl?.getAttribute('href')?.getValue() || '';
+        if (title && link) {
+          articles.push({ title: title.trim(), link: link.trim(), source: feed.name });
+        }
+      }
+    } catch (e) {
+      console.log('RSS取得エラー (' + feed.name + '): ' + e.message);
+    }
+  }
+  return articles;
+}
+
+// ============================================
+// Gemini APIで要約（リトライ機能付き）
+// ============================================
+function summarizeWithRetry(articles) {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const result = summarizeWithGemini(articles);
+    if (result.success) return result.text;
+    console.log('Gemini リトライ ' + attempt + '/3...');
+    if (attempt < 3) Utilities.sleep(10000);
+  }
+  return fallbackSummary(articles);
+}
+
+function summarizeWithGemini(articles) {
+  const today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd (E)');
+  const articleList = articles.map((a, i) => (i + 1) + '. [' + a.source + '] ' + a.title + '\\n   ' + a.link).join('\\n');
+
+  const prompt = 'あなたは${genreLabels || "ニュース"}分野の優秀なキュレーターです。\\n'
+    + '以下のニュース記事から、特に重要で面白いものを最大5つ選んでください。\\n\\n'
+    + '【重要なルール】\\n'
+    + '- 英語の記事は必ず日本語に翻訳して要約すること\\n'
+    + '- 各記事を1〜2行で簡潔に要約すること\\n'
+    + '- ${esc(tonePrompt)}\\n'
+    + '${esc(extra)}\\n\\n'
+    + '【出力フォーマット】\\n'
+    + '🌅 朝刊ニュース（' + today + '）\\n\\n'
+    + '1️⃣ 要約（日本語で1〜2行）\\n🔗 URL\\n\\n'
+    + '（最大5つ）\\n\\n'
+    + '💡 ひとこと：今日のトレンドを1文で。\\n\\n'
+    + '【記事リスト】\\n' + articleList;
+
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + GEMINI_API_KEY;
+  try {
+    const response = UrlFetchApp.fetch(url, {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+      muteHttpExceptions: true
+    });
+    const code = response.getResponseCode();
+    const json = JSON.parse(response.getContentText());
+    if (code === 200 && json.candidates?.[0]?.content?.parts?.[0]?.text) {
+      return { success: true, text: json.candidates[0].content.parts[0].text };
+    }
+    console.log('Gemini応答 (' + code + '): ' + JSON.stringify(json).substring(0, 300));
+    return { success: false };
+  } catch (e) {
+    console.log('Gemini APIエラー: ' + e.message);
+    return { success: false };
+  }
+}
+
+// フォールバック（AI要約が使えない場合）
+function fallbackSummary(articles) {
+  const today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd (E)');
+  const lines = articles.slice(0, 8).map((a, i) => (i + 1) + '. [' + a.source + '] ' + a.title + '\\n   ' + a.link);
+  return '🌅 朝刊ニュース（' + today + '）\\n\\n' + lines.join('\\n\\n') + '\\n\\n⚠️ AI要約は一時的に利用できないため、記事一覧をお届けします';
+}
+
+// ============================================
+// LINEにメッセージを送信
+// ============================================
+function sendLineMessage(text) {
+  if (text.length > 5000) text = text.substring(0, 4990) + '\\n...（省略）';
+  const url = 'https://api.line.me/v2/bot/message/push';
+  try {
+    const response = UrlFetchApp.fetch(url, {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { Authorization: 'Bearer ' + LINE_ACCESS_TOKEN },
+      payload: JSON.stringify({ to: LINE_USER_ID, messages: [{ type: 'text', text: text }] }),
+      muteHttpExceptions: true
+    });
+    const code = response.getResponseCode();
+    if (code === 200) { console.log('LINE送信成功！'); }
+    else { console.log('LINE送信エラー: ' + code + ' ' + response.getContentText()); }
+  } catch (e) {
+    console.log('LINE送信エラー: ' + e.message);
+  }
+}`;
+}
+
+// ===== AI-BASED CODE GENERATION =====
+async function generateWithAI() {
+  const feeds = getAllFeeds();
+  const toneDesc = TONES.find(t => t.id === state.tone)?.desc || '';
+  const genreLabels = state.selectedGenres.map(id => GENRES[id]?.label).filter(Boolean).join('、');
+
+  const prompt = `以下の要件でGoogle Apps Scriptのコードを生成してください。
+
+【目的】毎朝RSSからニュースを取得し、Gemini APIで日本語要約してLINE Messaging APIで送信するBot。
+
+【ニュースソース】
+${feeds.map(f => `- { name: '${f.name}', url: '${f.url}' }`).join('\n')}
+
+【ジャンル】${genreLabels || 'カスタム'}
+【要約トーン】${toneDesc}
+【追加リクエスト】${state.customPrompt || '特になし'}
+
+【技術仕様（厳守）】
+- GAS V8ランタイムで動作
+- 上部に3定数: LINE_ACCESS_TOKEN='${state.lineToken||'ここにアクセストークンを貼る'}', LINE_USER_ID='${state.lineUserId||'ここにユーザーIDを貼る'}', GEMINI_API_KEY='${state.geminiKey||'ここにGemini APIキーを貼る'}'
+- RSS取得: UrlFetchApp + XmlService、RSS2.0とAtom両対応
+- AI要約: gemini-2.0-flash、リトライ3回（10秒間隔）
+- LINE送信: Push API、5000文字制限対応
+- フォールバック: Gemini失敗時は記事一覧送信
+- メイン関数名: main()
+- コメントは日本語
+- 英語記事の日本語翻訳必須
+- 出力はコードのみ（説明文不要、マークダウン記法不要）`;
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': state.claudeKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 4096,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  });
+
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  const data = await res.json();
+  let code = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
+  return code.replace(/^```(?:javascript|js)?\n?/gm, '').replace(/\n?```$/gm, '').trim();
+}
+
+// ===== GENERATE =====
+async function doGenerate() {
+  setState({ loading: true, error: '' });
+  try {
+    let code;
+    if (state.useAI && state.claudeKey) {
+      code = await generateWithAI();
+    } else {
+      code = generateFromTemplate();
+    }
+    setState({ generatedCode: code, step: 4, loading: false });
+  } catch(e) {
+    setState({ error: 'コード生成中にエラー: ' + e.message, loading: false });
+  }
+}
+
+function copyCode() {
+  navigator.clipboard.writeText(state.generatedCode).then(() => {
+    setState({ copied: true });
+    setTimeout(() => setState({ copied: false }), 2000);
+  }).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = state.generatedCode;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    setState({ copied: true });
+    setTimeout(() => setState({ copied: false }), 2000);
+  });
+}
+
+// ===== RENDER =====
+function render() {
+  // Progress
+  const progEl = document.getElementById('progress');
+  progEl.innerHTML = [0,1,2,3,4].map(i =>
+    `<div class="progress-dot ${state.step === i ? 'active' : ''} ${state.step > i ? 'done' : ''}"></div>`
+  ).join('');
+
+  const c = document.getElementById('content');
+  const n = document.getElementById('nav');
+
+  // Step 0: Genre
+  if (state.step === 0) {
+    const q = state.searchQuery.toLowerCase();
+    const filteredCats = CATEGORIES.map(cat => {
+      const ids = cat.ids.filter(id => {
+        const g = GENRES[id];
+        if (!g) return false;
+        if (!q) return true;
+        return g.label.toLowerCase().includes(q) || g.feeds.some(f => f.name.toLowerCase().includes(q));
+      });
+      return { ...cat, ids };
+    }).filter(cat => cat.ids.length > 0);
+
+    c.innerHTML = `
+      <div class="step-label">STEP 1 / 5</div>
+      <div class="step-title">どんなニュースが欲しい？${state.selectedGenres.length ? `<span class="selected-count">${state.selectedGenres.length}件選択中</span>` : ''}</div>
+      <p class="step-desc">ジャンルを選択（複数OK）。検索で絞り込みもできます。</p>
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input class="search-input" data-sid="search" placeholder="ジャンル名やサイト名で検索..." value="${state.searchQuery}" oninput="setState({searchQuery:this.value})">
+      </div>
+      ${filteredCats.map(cat => `
+        <div class="cat-header">${cat.label}</div>
+        ${cat.ids.map(id => { const g = GENRES[id]; return `
+          <div class="card ${state.selectedGenres.includes(id)?'selected':''}" onclick="toggleGenre('${id}')">
+            <div class="card-row">
+              <span class="card-emoji">${g.emoji}</span>
+              <div><div class="card-name">${g.label}</div><div class="card-sub">${g.feeds.map(f=>f.name).join(', ')}</div></div>
+            </div>
+          </div>
+        `; }).join('')}
+      `).join('')}
+      ${filteredCats.length === 0 ? '<div style="text-align:center;color:#64748B;padding:20px;font-size:13px">該当するジャンルが見つかりません</div>' : ''}
+      <div class="section-title" style="margin-top:24px">カスタムRSSを追加（任意）</div>
+      ${state.customFeeds.map((f,i) => `
+        <div class="input-row">
+          <input class="input-sm input-name" data-sid="feed-name-${i}" placeholder="サイト名" value="${f.name}" oninput="updateFeed(${i},'name',this.value)">
+          <input class="input-sm" data-sid="feed-url-${i}" placeholder="RSS URL (https://...)" value="${f.url}" oninput="updateFeed(${i},'url',this.value)">
+          ${state.customFeeds.length > 1 ? `<button class="btn-danger" onclick="removeFeed(${i})">✕</button>` : ''}
+        </div>
+      `).join('')}
+      <button class="btn-secondary btn-sm" style="margin-top:6px" onclick="addFeed()">＋ RSS追加</button>
+    `;
+  }
+
+  // Step 1: Tone
+  else if (state.step === 1) {
+    c.innerHTML = `
+      <div class="step-label">STEP 2 / 5</div>
+      <div class="step-title">どんなトーンで届けたい？</div>
+      ${TONES.map(t => `
+        <div class="card ${state.tone===t.id?'selected':''}" onclick="setTone('${t.id}')">
+          <div class="card-name">${t.label}</div>
+          <div class="card-sub">${t.desc}</div>
+        </div>
+      `).join('')}
+      <div style="margin-top:20px">
+        <label class="label">追加のリクエスト（任意）</label>
+        <textarea placeholder="例：&#10;・各記事に重要度（高/中/低）をつけて&#10;・週末は「今週のまとめ」も送って&#10;・特定ジャンルは特に詳しく要約して" oninput="state.customPrompt=this.value">${state.customPrompt}</textarea>
+        <div class="hint">要約スタイルや選定基準など、自由にリクエストできます</div>
+      </div>
+    `;
+  }
+
+  // Step 2: Keys (with embedded guides)
+  else if (state.step === 2) {
+    if (state.showGuide) {
+      // Full setup guide page
+      c.innerHTML = `
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;cursor:pointer" onclick="setState({showGuide:false})">
+          <span style="font-size:18px;color:#A5B4FC">←</span>
+          <span style="font-size:13px;color:#A5B4FC;font-weight:600">APIキー入力に戻る</span>
+        </div>
+        <div class="step-title">📖 セットアップ完全ガイド</div>
+        <p class="step-desc">LINE公式アカウントの作成からGemini APIキーの取得まで、すべての手順を解説します。</p>
+
+        <!-- LINE Official Account -->
+        <div class="cat-header">① LINE公式アカウントを作る</div>
+        <div class="guide-step"><span class="guide-num">1</span><div class="guide-text"><a href="https://manager.line.biz/" target="_blank">LINE Official Account Manager</a> にアクセスし、LINEアカウントでログイン</div></div>
+        <div class="guide-step"><span class="guide-num">2</span><div class="guide-text">「アカウントを作成」をクリック</div></div>
+        <div class="guide-step"><span class="guide-num">3</span><div class="guide-text">アカウント名を入力（例：「朝刊AIニュース」）、業種は「個人」を選択</div></div>
+        <div class="guide-step"><span class="guide-num">4</span><div class="guide-text">作成後、LINEアプリで友だち追加する（ID検索でアカウントIDを入力）</div></div>
+
+        <!-- LINE Developers -->
+        <div class="cat-header">② LINE Developersで開発者登録</div>
+        <div class="guide-step"><span class="guide-num">1</span><div class="guide-text"><a href="https://developers.line.biz/console/" target="_blank">LINE Developers コンソール</a> にアクセスし、同じLINEアカウントでログイン</div></div>
+        <div class="guide-step"><span class="guide-num">2</span><div class="guide-text">初回は開発者アカウント作成画面が表示される。名前・メールアドレスを入力し、規約に同意して作成</div></div>
+        <div class="guide-step"><span class="guide-num">3</span><div class="guide-text">「新規プロバイダー作成」をクリックし、名前を入力（例：「MyApps」）</div></div>
+
+        <!-- Enable Messaging API -->
+        <div class="cat-header">③ Messaging APIを有効にする</div>
+        <div class="info-box" style="margin-top:8px">⚠️ LINE DevelopersからMessaging APIチャネルを直接作成する機能は廃止されました。LINE Official Account Manager側から有効にします。</div>
+        <div class="guide-step"><span class="guide-num">1</span><div class="guide-text"><a href="https://manager.line.biz/" target="_blank">LINE Official Account Manager</a> に戻り、右上の「設定」をクリック</div></div>
+        <div class="guide-step"><span class="guide-num">2</span><div class="guide-text">左メニューから「Messaging API」を選択</div></div>
+        <div class="guide-step"><span class="guide-num">3</span><div class="guide-text">プロバイダー選択で、先ほど作った「MyApps」等を選択</div></div>
+        <div class="guide-step"><span class="guide-num">4</span><div class="guide-text">プライバシーポリシー・利用規約は空欄のまま「OK」をクリック</div></div>
+
+        <!-- Get Token -->
+        <div class="cat-header">④ チャネルアクセストークンを取得</div>
+        <div class="guide-step"><span class="guide-num">1</span><div class="guide-text"><a href="https://developers.line.biz/console/" target="_blank">LINE Developers コンソール</a> → プロバイダー → チャネルをクリック</div></div>
+        <div class="guide-step"><span class="guide-num">2</span><div class="guide-text">「<strong>Messaging API設定</strong>」タブを選択</div></div>
+        <div class="guide-step"><span class="guide-num">3</span><div class="guide-text">ページ下部の「チャネルアクセストークン」で「<strong>発行</strong>」をクリック</div></div>
+        <div class="guide-step"><span class="guide-num">4</span><div class="guide-text">表示された長い英数字の文字列をコピー → これが<code>チャネルアクセストークン</code></div></div>
+
+        <!-- Get User ID -->
+        <div class="cat-header">⑤ ユーザーIDを取得</div>
+        <div class="guide-step"><span class="guide-num">1</span><div class="guide-text">同じチャネルページで「<strong>チャネル基本設定</strong>」タブに切り替え</div></div>
+        <div class="guide-step"><span class="guide-num">2</span><div class="guide-text">ページ最下部の「<strong>あなたのユーザーID</strong>」をコピー（<code>U</code>から始まる文字列）</div></div>
+        <div class="guide-warn">⚠️ ベーシックID（@で始まるもの）ではありません。必ず「U」から始まるユーザーIDを使ってください。</div>
+
+        <!-- Gemini API Key -->
+        <div class="cat-header">⑥ Gemini APIキーを取得</div>
+        <div class="guide-step"><span class="guide-num">1</span><div class="guide-text"><a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a> にアクセスし、Googleアカウントでログイン</div></div>
+        <div class="guide-step"><span class="guide-num">2</span><div class="guide-text">「<strong>APIキーを作成</strong>」をクリック</div></div>
+        <div class="guide-step"><span class="guide-num">3</span><div class="guide-text">プロジェクト選択画面が出たら適当に選択して作成</div></div>
+        <div class="guide-step"><span class="guide-num">4</span><div class="guide-text">表示されたAPIキーをコピー → これが<code>Gemini APIキー</code></div></div>
+        <div class="info-box" style="margin-top:8px">💡 無料枠で1日約1,500回利用可能。毎朝1回の実行なら余裕で無料枠に収まります。</div>
+
+        <div class="guide-warn" style="margin-top:16px">🔐 すべてのキーはパスワードと同じです。SNSやブログに絶対に公開しないでください。</div>
+
+        <div style="text-align:center;margin-top:24px">
+          <button class="btn btn-primary" onclick="setState({showGuide:false})">APIキー入力に戻る →</button>
+        </div>
+      `;
+      n.innerHTML = '';
+      return;
+    }
+
+    // Normal API key input view
+    c.innerHTML = `
+      <div class="step-label">STEP 3 / 5</div>
+      <div class="step-title">APIキーを入力（任意）</div>
+      <div class="info-box">🔒 入力した情報はブラウザ内でのみ使用され、サーバーに送信されません。空欄でもプレースホルダー付きのコードが生成されます。</div>
+
+      <div class="mb-16">
+        <label class="label">LINE チャネルアクセストークン</label>
+        <input type="password" data-sid="line-token" placeholder="LINE Developersで取得したトークン" value="${state.lineToken}" oninput="state.lineToken=this.value">
+        <div class="accordion" style="margin-top:6px">
+          <div class="accordion-header" onclick="toggleAccordion('token')">
+            <span class="accordion-title">🔑 取得方法を見る</span>
+            <span class="accordion-arrow ${state.openAccordions.token?'open':''}">▶</span>
+          </div>
+          <div class="accordion-body ${state.openAccordions.token?'open':''}">
+            <div class="guide-step"><span class="guide-num">1</span><div class="guide-text"><a href="https://developers.line.biz/console/" target="_blank">LINE Developers コンソール</a> → プロバイダー → チャネル</div></div>
+            <div class="guide-step"><span class="guide-num">2</span><div class="guide-text">「Messaging API設定」タブ → ページ下部「チャネルアクセストークン」→「発行」</div></div>
+            <div class="guide-step"><span class="guide-num">3</span><div class="guide-text">表示された長い英数字をコピー</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mb-16">
+        <label class="label">LINE ユーザーID</label>
+        <input type="text" data-sid="line-uid" placeholder="Uから始まる英数字" value="${state.lineUserId}" oninput="state.lineUserId=this.value">
+        <div class="accordion" style="margin-top:6px">
+          <div class="accordion-header" onclick="toggleAccordion('uid')">
+            <span class="accordion-title">🔑 取得方法を見る</span>
+            <span class="accordion-arrow ${state.openAccordions.uid?'open':''}">▶</span>
+          </div>
+          <div class="accordion-body ${state.openAccordions.uid?'open':''}">
+            <div class="guide-step"><span class="guide-num">1</span><div class="guide-text">同じチャネルページで「チャネル基本設定」タブに切り替え</div></div>
+            <div class="guide-step"><span class="guide-num">2</span><div class="guide-text">ページ最下部「あなたのユーザーID」をコピー</div></div>
+            <div class="guide-warn">⚠️ ベーシックID（@で始まるもの）ではなく、<code>U</code>から始まる文字列です</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mb-16">
+        <label class="label">Gemini APIキー</label>
+        <input type="password" data-sid="gemini-key" placeholder="Google AI Studioで取得したキー" value="${state.geminiKey}" oninput="state.geminiKey=this.value">
+        <div class="accordion" style="margin-top:6px">
+          <div class="accordion-header" onclick="toggleAccordion('gemini')">
+            <span class="accordion-title">🔑 取得方法を見る</span>
+            <span class="accordion-arrow ${state.openAccordions.gemini?'open':''}">▶</span>
+          </div>
+          <div class="accordion-body ${state.openAccordions.gemini?'open':''}">
+            <div class="guide-step"><span class="guide-num">1</span><div class="guide-text"><a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a> にアクセス</div></div>
+            <div class="guide-step"><span class="guide-num">2</span><div class="guide-text">「APIキーを作成」→ プロジェクト選択 → キーをコピー</div></div>
+            <div class="info-box" style="margin-top:6px;margin-bottom:0">💡 無料枠で1日約1,500回使えます</div>
+          </div>
+        </div>
+      </div>
+
+      <button class="full-guide-btn" onclick="setState({showGuide:true})">📖 初めての方はこちら：LINE・GAS登録の完全ガイド</button>
+    `;
+  }
+
+  // Step 3: Confirm & Generate
+  else if (state.step === 3) {
+    const feeds = getAllFeeds();
+    c.innerHTML = `
+      <div class="step-label">STEP 4 / 5</div>
+      <div class="step-title">内容を確認してコード生成</div>
+
+      <div class="card static">
+        <div class="card-label">ニュースソース</div>
+        <div>${feeds.map(f => `<span class="tag">${f.name}</span>`).join('')}</div>
+      </div>
+      <div class="card static">
+        <div class="card-label">要約トーン</div>
+        <div style="font-size:13px;color:#CBD5E1">${TONES.find(t=>t.id===state.tone)?.label} - ${TONES.find(t=>t.id===state.tone)?.desc}</div>
+      </div>
+      ${state.customPrompt ? `<div class="card static"><div class="card-label">追加リクエスト</div><div style="font-size:13px;color:#CBD5E1;white-space:pre-wrap">${state.customPrompt}</div></div>` : ''}
+      <div class="card static">
+        <div class="card-label">APIキー</div>
+        <div style="font-size:12px;color:#94A3B8">
+          LINE Token: ${state.lineToken ? '✅ 設定済み' : '⬜ 未入力（あとで設定）'}<br>
+          User ID: ${state.lineUserId ? '✅ 設定済み' : '⬜ 未入力（あとで設定）'}<br>
+          Gemini Key: ${state.geminiKey ? '✅ 設定済み' : '⬜ 未入力（あとで設定）'}
+        </div>
+      </div>
+
+      <div class="section-title">生成モード</div>
+      <div class="toggle-row">
+        <div class="toggle ${state.useAI?'on':''}" onclick="setState({useAI:!state.useAI})"><div class="toggle-knob"></div></div>
+        <div>
+          <div style="font-size:13px;font-weight:600;color:#E2E8F0">${state.useAI ? 'AI生成モード（Claude使用）' : 'テンプレート生成モード（API不要）'}</div>
+          <div style="font-size:11px;color:#64748B">${state.useAI ? '追加リクエストに柔軟に対応。Anthropic APIキーが必要' : '即座に生成。APIキー不要で誰でも使える'}</div>
+        </div>
+      </div>
+      ${state.useAI ? `
+        <div class="mb-16">
+          <label class="label">Anthropic APIキー（AI生成に必要）</label>
+          <input type="password" placeholder="sk-ant-..." value="${state.claudeKey}" oninput="state.claudeKey=this.value">
+          <div class="hint">※ https://console.anthropic.com で取得できます</div>
+        </div>
+      ` : ''}
+
+      ${state.error ? `<div class="info-box error">⚠️ ${state.error}</div>` : ''}
+
+      <div class="center" style="margin-top:20px">
+        <button class="btn btn-primary btn-generate" onclick="doGenerate()" ${state.loading?'disabled':''}>
+          ${state.loading ? '<span class="spinner"></span>生成中...' : '🤖 コードを生成する'}
+        </button>
+      </div>
+    `;
+  }
+
+  // Step 4: Result
+  else if (state.step === 4) {
+    c.innerHTML = `
+      <div class="step-label">STEP 5 / 5</div>
+      <div class="step-title">✅ コードが完成！</div>
+      <div class="info-box">以下のコードをGoogle Apps Scriptエディタに貼り付けて、トリガーを設定すれば完成です。</div>
+      <div style="position:relative">
+        <button class="btn-copy ${state.copied?'copied':''}" onclick="copyCode()">${state.copied ? '✅ コピー済み' : '📋 コピー'}</button>
+        <div class="code-box">${escHtml(state.generatedCode)}</div>
+      </div>
+
+      <div class="steps-after">あとは以下の手順で完成：</div>
+
+      <div class="accordion" style="margin-top:8px">
+        <div class="accordion-header" onclick="toggleAccordion('gas-setup')">
+          <span class="accordion-title">1️⃣ GASプロジェクトを作成してコードを貼り付ける</span>
+          <span class="accordion-arrow ${state.openAccordions['gas-setup']?'open':''}">▶</span>
+        </div>
+        <div class="accordion-body ${state.openAccordions['gas-setup']?'open':''}">
+          <div class="guide-step"><span class="guide-num">1</span><div class="guide-text"><a href="https://drive.google.com" target="_blank">Googleドライブ</a> を開き、左上「＋ 新規」→「その他」→「Google Apps Script」を選択</div></div>
+          <div class="guide-step"><span class="guide-num">2</span><div class="guide-text">エディタが開いたら、最初から書いてある <code>function myFunction(){}</code> を全部削除</div></div>
+          <div class="guide-step"><span class="guide-num">3</span><div class="guide-text">上の「📋 コピー」ボタンでコードをコピーし、GASエディタに貼り付け</div></div>
+          <div class="guide-step"><span class="guide-num">4</span><div class="guide-text">APIキーが未入力の場合は、コード上部の3行を自分の値に書き換え</div></div>
+        </div>
+      </div>
+
+      <div class="accordion">
+        <div class="accordion-header" onclick="toggleAccordion('gas-test')">
+          <span class="accordion-title">2️⃣ テスト実行する</span>
+          <span class="accordion-arrow ${state.openAccordions['gas-test']?'open':''}">▶</span>
+        </div>
+        <div class="accordion-body ${state.openAccordions['gas-test']?'open':''}">
+          <div class="guide-step"><span class="guide-num">1</span><div class="guide-text">上部の関数選択が「<strong>main</strong>」になっていることを確認</div></div>
+          <div class="guide-step"><span class="guide-num">2</span><div class="guide-text">「▶ 実行」ボタンをクリック</div></div>
+          <div class="guide-step"><span class="guide-num">3</span><div class="guide-text">初回は「権限の承認」画面が出る → 「詳細」→「安全でないページに移動」→「許可」</div></div>
+          <div class="guide-step"><span class="guide-num">4</span><div class="guide-text">実行ログに「LINE送信成功！」と出ればOK。LINEを確認！</div></div>
+          <div class="guide-warn">⚠️ Gemini APIキー取得直後はレート制限がかかる場合あり。その場合は記事一覧版が届きます。数時間後に再実行すればAI要約版が届きます。</div>
+        </div>
+      </div>
+
+      <div class="accordion">
+        <div class="accordion-header" onclick="toggleAccordion('gas-trigger')">
+          <span class="accordion-title">3️⃣ 毎朝の自動実行を設定する</span>
+          <span class="accordion-arrow ${state.openAccordions['gas-trigger']?'open':''}">▶</span>
+        </div>
+        <div class="accordion-body ${state.openAccordions['gas-trigger']?'open':''}">
+          <div class="guide-step"><span class="guide-num">1</span><div class="guide-text">GASエディタ左メニューの時計アイコン（「トリガー」）をクリック</div></div>
+          <div class="guide-step"><span class="guide-num">2</span><div class="guide-text">右下の「＋ トリガーを追加」をクリック</div></div>
+          <div class="guide-step"><span class="guide-num">3</span><div class="guide-text">設定：実行する関数 → <code>main</code>、イベントのソース → <code>時間主導型</code>、タイプ → <code>日付ベースのタイマー</code>、時刻 → <code>午前7時〜8時</code></div></div>
+          <div class="guide-step"><span class="guide-num">4</span><div class="guide-text">「保存」をクリックで完了！明日の朝からニュースが届きます 🎉</div></div>
+        </div>
+      </div>
+
+      <div class="center" style="margin-top:24px">
+        <button class="btn-secondary" onclick="setState({step:0,generatedCode:''})">🔄 最初からやり直す</button>
+      </div>
+    `;
+  }
+
+  // Nav
+  if (state.step < 4 && state.step !== 3) {
+    n.innerHTML = `
+      <div class="nav">
+        ${state.step > 0 ? `<button class="btn-secondary" onclick="setState({step:state.step-1})">← 戻る</button>` : '<div></div>'}
+        <button class="btn btn-primary" onclick="if(canProceed())setState({step:state.step+1})" ${canProceed()?'':'disabled'}>次へ →</button>
+      </div>
+    `;
+  } else if (state.step === 3) {
+    n.innerHTML = `<div class="nav"><button class="btn-secondary" onclick="setState({step:state.step-1})">← 戻る</button><div></div></div>`;
+  } else {
+    n.innerHTML = '';
+  }
+}
+
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function toggleGenre(id) { const g = state.selectedGenres; setState({ selectedGenres: g.includes(id) ? g.filter(x=>x!==id) : [...g, id] }); }
+function setTone(id) { setState({ tone: id }); }
+function addFeed() { setState({ customFeeds: [...state.customFeeds, {name:'',url:''}] }); }
+function updateFeed(i,field,val) { const f=[...state.customFeeds]; f[i]={...f[i],[field]:val}; setState({customFeeds:f}); }
+function removeFeed(i) { setState({ customFeeds: state.customFeeds.filter((_,j)=>j!==i) }); }
+function toggleAccordion(id) { const o = {...state.openAccordions}; o[id] = !o[id]; setState({openAccordions:o}); }
+
+render();
+</script>
+</body>
+</html>
